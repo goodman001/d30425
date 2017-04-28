@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script
+  src="https://code.jquery.com/jquery-2.2.4.min.js"
+  integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44="
+  crossorigin="anonymous"></script>
+<style type="text/css">
+
+/* Legend Font Style */
+body {
+	font: 11px sans-serif;
+	background-color: #FCFBFA;
+}
+.background{
+	background-color: #FCFBFA;
+	}        
+/* Legend Position Style */
+.legend {
+	margin-top:50px;
+	position:absolute;
+	left:20px;
+	top:30px;
+}
+
+.axis text {
+	font: 10px sans-serif;
+}
+
+.axis line, .axis path {
+	fill: none;
+	stroke: #000;
+	shape-rendering: crispEdges;
+}
+#states .active {
+  fill: orange;
+}
+div.tooltip {
+  position: absolute;
+  text-align: center;
+  width: 100px;
+  height: 28px;
+  padding: 2px;
+  font: 12px sans-serif;
+  background: lightsteelblue;
+  border: 0px;
+  border-radius: 8px;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+	<div>
+		<h1>Choropleth graph</h1>
+		Select Case Status:
+		<select name="" id="sel">
+			<option value="stateUGDMAN">UGDSMAN</option>
+			<option value="stateUGDWOMAN">UGDSWOMOM</option>
+		</select>
+	</div>
+	<div class="chart">
+		
+	</div>
+<script type="text/javascript">
+var sel=document.getElementById("sel");
+var index = sel.selectedIndex; // 
+//alert(sel.options[0].value);
+starts(sel.options[0].value);　
+sel.onchange=function(){
+	//alert(sel.options[sel.selectedIndex].value);
+	starts(sel.options[sel.selectedIndex].value);　
+}
+function starts(filename){
+	$(".chart").empty();
+	//Width and height of map
+	var width = 960;
+	var height = 500;
+	var centered;
+	var lowColor = '#ECC8A4'
+	var highColor = '#F97D16'
+
+	// D3 Projection
+	var projection = d3.geoAlbersUsa()
+	  .translate([width / 2, height / 2]) // translate to center of screen
+	  .scale([1070]); // scale things down so see entire US
+
+	// Define path generator
+	var path = d3.geoPath() // path generator that will convert GeoJSON to SVG paths
+	  .projection(projection); // tell path generator to use albersUsa projection
+
+	 var div = d3.select(".chart").append("div")
+		.attr("class", "tooltip")
+		.style("opacity", 0);
+
+	//Create SVG element and append map to the SVG
+	var svg = d3.select(".chart")
+	  .append("svg")
+	  .attr("width", width)
+	  .attr("height", height);
+	svg.append("rect")
+		.attr("width", width)
+		.attr("height", height)
+		.style("fill","#FCFBFA")
+		.on("click", clicked);
+	var g = svg.append("g");
+	// Load in my states data!
+	d3.csv(filename + ".csv", function(data) {
+		var dataArray = [];
+		for (var d = 0; d < data.length; d++) {
+			dataArray.push(parseFloat(data[d].value))
+		}
+		var minVal = d3.min(dataArray)
+		var maxVal = d3.max(dataArray)
+		var ramp = d3.scaleLinear().domain([minVal,maxVal]).range([lowColor,highColor])
+
+	  // Load GeoJSON data and merge with states data
+	  d3.json("us.json", function(json) {
+
+		// Loop through each state data value in the .csv file
+		for (var i = 0; i < data.length; i++) {
+
+		  // Grab State Name
+		  var dataState = data[i].state;
+
+		  // Grab data value 
+		  var dataValue = data[i].value;
+
+		  // Find the corresponding state inside the GeoJSON
+		  for (var j = 0; j < json.features.length; j++) {
+			var jsonState = json.features[j].properties.name;
+
+			if (dataState == jsonState) {
+
+			  // Copy the data value into the JSON
+			  json.features[j].properties.value = dataValue;
+
+			  // Stop looking through the JSON
+			  break;
+			}
+		  }
+		}
+
+		// Bind the data to the SVG and create one path per GeoJSON feature
+		g.append("g")
+		  .attr("id", "states")
+		  .selectAll("path")
+		  .data(json.features)
+		  .enter()
+		  .append("path")
+		  .attr("d", path)
+		  .style("stroke", "#fff")
+		  .style("stroke-width", "1")
+		  .style("fill", function(d) { return ramp(d.properties.value) })
+		  .on("click", clicked)
+		  .on("mouseover", function(d) {
+			d3.select(this).transition().duration(300).style("opacity", 0.8);
+			div.transition()
+			 .duration(200)
+			 .style("opacity", .9);
+			console.log(d);
+		   div.html(d.properties.name + ":" + d.properties.value )
+			 .style("left", (d3.event.pageX) + "px")
+			 .style("top", (d3.event.pageY) + "px");
+		  })
+		  .on("mouseout", function() {
+			d3.select(this)
+			.transition().duration(300)
+			.style("opacity", 1);
+			div.transition()
+			 .duration(500)
+			 .style("opacity", 0);
+		  });
+
+			var w = 140, h = 300;
+
+			var key = d3.select(".chart")
+				.append("svg")
+				.attr("width", w)
+				.attr("height", h)
+				.attr("class", "legend");
+
+			var legend = key.append("defs")
+				.append("svg:linearGradient")
+				.attr("id", "gradient")
+				.attr("x1", "100%")
+				.attr("y1", "0%")
+				.attr("x2", "100%")
+				.attr("y2", "100%")
+				.attr("spreadMethod", "pad");
+
+			legend.append("stop")
+				.attr("offset", "0%")
+				.attr("stop-color", highColor)
+				.attr("stop-opacity", 1);
+
+			legend.append("stop")
+				.attr("offset", "100%")
+				.attr("stop-color", lowColor)
+				.attr("stop-opacity", 1);
+
+			key.append("rect")
+				.attr("width", w - 100)
+				.attr("height", h)
+				.style("fill", "url(#gradient)")
+				.attr("transform", "translate(0,10)");
+
+			var y = d3.scaleLinear()
+				.range([h, 0])
+				.domain([minVal, maxVal]);
+
+			var yAxis = d3.axisRight(y);
+
+			key.append("g")
+				.attr("class", "y axis")
+				.attr("transform", "translate(41,10)")
+				.call(yAxis)
+	  });
+	});
+	function clicked(d) {
+	  var x, y, k;
+
+	  if (d && centered !== d) {
+		var centroid = path.centroid(d);
+		console.log(centroid);
+		x = centroid[0];
+		y = centroid[1];
+		k = 4;
+		centered = d;
+		d3.select(this)
+			.transition().duration(300)
+			.style("opacity", 0.8);
+	  } else {
+		x = width / 2;
+		y = height / 2;
+		k = 1;
+		centered = null;
+		d3.select(this)
+			.transition().duration(300)
+			.style("opacity", 1);
+	  }
+
+	  g.selectAll("path")
+		  .classed("active", centered && function(d) { return d === centered; });
+
+	  g.transition()
+		  .duration(750)
+		  .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")scale(" + k + ")translate(" + -x + "," + -y + ")")
+		  .style("stroke-width", 1.5 / k + "px");
+	}
+	
+	
+}
+
+</script>
+</body>
+</html>
